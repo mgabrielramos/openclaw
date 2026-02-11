@@ -1131,9 +1131,19 @@ export class MemoryIndexManager {
 
     const tasks = fileEntries.map((entry) => async () => {
       const record = this.db
-        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
-        .get(entry.path, "memory") as { hash: string } | undefined;
-      if (!params.needsFullReindex && record?.hash === entry.hash) {
+    const fileHashes = new Map<string, string>();
+    if (!params.needsFullReindex) {
+      const rows = this.db
+        .prepare(`SELECT path, hash FROM files WHERE source = ?`)
+        .all("memory") as Array<{ path: string; hash: string }>;
+      for (const row of rows) {
+        fileHashes.set(row.path, row.hash);
+      }
+    }
+
+    const tasks = fileEntries.map((entry) => async () => {
+      const existingHash = fileHashes.get(entry.path);
+      if (!params.needsFullReindex && existingHash === entry.hash) {
         if (params.progress) {
           params.progress.completed += 1;
           params.progress.report({
@@ -1184,16 +1194,6 @@ export class MemoryIndexManager {
     needsFullReindex: boolean;
     progress?: MemorySyncProgressState;
   }) {
-    const files = await this.listSessionFiles();
-    const activePaths = new Set(files.map((file) => this.sessionPathForFile(file)));
-    const indexAll = params.needsFullReindex || this.sessionsDirtyFiles.size === 0;
-    log.debug("memory sync: indexing session files", {
-      files: files.length,
-      indexAll,
-      dirtyFiles: this.sessionsDirtyFiles.size,
-      batch: this.batch.enabled,
-      concurrency: this.getIndexConcurrency(),
-    });
     if (params.progress) {
       params.progress.total += files.length;
       params.progress.report({
@@ -1201,6 +1201,16 @@ export class MemoryIndexManager {
         total: params.progress.total,
         label: this.batch.enabled ? "Indexing session files (batch)..." : "Indexing session files…",
       });
+    }
+
+    const fileHashes = new Map<string, string>();
+    if (!params.needsFullReindex) {
+      const rows = this.db
+        .prepare(`SELECT path, hash FROM files WHERE source = ?`)
+        .all("sessions") as Array<{ path: string; hash: string }>;
+      for (const row of rows) {
+        fileHashes.set(row.path, row.hash);
+      }
     }
 
     const tasks = files.map((absPath) => async () => {
@@ -1225,11 +1235,28 @@ export class MemoryIndexManager {
         }
         return;
       }
-      const record = this.db
-        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
-        .get(entry.path, "sessions") as { hash: string } | undefined;
-      if (!params.needsFullReindex && record?.hash === entry.hash) {
+      const existingHash = fileHashes.get(entry.path);
+      if (!params.needsFullReindex && existingHash === entry.hash) {
         if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        this.resetSessionDelta(absPath, entry.size);
+        return;
+      }
+      await this.indexFile(entry, { source: "sessions", content: entry.content });
+      this.resetSessionDelta(absPath, entry.size);
+      if (params.progress) {
+        params.progress.completed += 1;
+        params.progress.report({
+          completed: params.progress.completed,
+          total: params.progress.total,
+        });
+      }
+    });
           params.progress.completed += 1;
           params.progress.report({
             completed: params.progress.completed,
