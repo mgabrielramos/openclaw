@@ -1,3 +1,4 @@
+import type { Locator } from "playwright-core";
 import type { BrowserFormField } from "./client-actions-core.js";
 import {
   ensurePageState,
@@ -6,6 +7,28 @@ import {
   restoreRoleRefsForTarget,
 } from "./pw-session.js";
 import { normalizeTimeoutMs, requireRef, toAIFriendlyError } from "./pw-tools-core.shared.js";
+
+async function runPlaywrightAction(
+  opts: {
+    cdpUrl: string;
+    targetId?: string;
+    ref: string;
+    timeoutMs?: number;
+  },
+  action: (locator: Locator, timeout: number) => Promise<void>
+): Promise<void> {
+  const page = await getPageForTargetId(opts);
+  ensurePageState(page);
+  restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
+  const ref = requireRef(opts.ref);
+  const locator = refLocator(page, ref);
+  const timeout = Math.max(500, Math.min(60_000, Math.floor(opts.timeoutMs ?? 8000)));
+  try {
+    await action(locator, timeout);
+  } catch (err) {
+    throw toAIFriendlyError(err, ref);
+  }
+}
 
 export async function highlightViaPlaywright(opts: {
   cdpUrl: string;
@@ -32,16 +55,7 @@ export async function clickViaPlaywright(opts: {
   modifiers?: Array<"Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift">;
   timeoutMs?: number;
 }): Promise<void> {
-  const page = await getPageForTargetId({
-    cdpUrl: opts.cdpUrl,
-    targetId: opts.targetId,
-  });
-  ensurePageState(page);
-  restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
-  const ref = requireRef(opts.ref);
-  const locator = refLocator(page, ref);
-  const timeout = Math.max(500, Math.min(60_000, Math.floor(opts.timeoutMs ?? 8000)));
-  try {
+  await runPlaywrightAction(opts, async (locator, timeout) => {
     if (opts.doubleClick) {
       await locator.dblclick({
         timeout,
@@ -55,9 +69,7 @@ export async function clickViaPlaywright(opts: {
         modifiers: opts.modifiers,
       });
     }
-  } catch (err) {
-    throw toAIFriendlyError(err, ref);
-  }
+  });
 }
 
 export async function hoverViaPlaywright(opts: {
@@ -66,17 +78,11 @@ export async function hoverViaPlaywright(opts: {
   ref: string;
   timeoutMs?: number;
 }): Promise<void> {
-  const ref = requireRef(opts.ref);
-  const page = await getPageForTargetId(opts);
-  ensurePageState(page);
-  restoreRoleRefsForTarget({ cdpUrl: opts.cdpUrl, targetId: opts.targetId, page });
-  try {
-    await refLocator(page, ref).hover({
-      timeout: Math.max(500, Math.min(60_000, opts.timeoutMs ?? 8000)),
+  await runPlaywrightAction(opts, async (locator, timeout) => {
+    await locator.hover({
+      timeout,
     });
-  } catch (err) {
-    throw toAIFriendlyError(err, ref);
-  }
+  });
 }
 
 export async function dragViaPlaywright(opts: {
