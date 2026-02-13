@@ -384,36 +384,31 @@ export async function ensureFunnel(
   }
 }
 
-export async function enableTailscaleServe(port: number, exec: typeof runExec = runExec) {
+async function runTailscaleServiceCommand(
+  args: string[],
+  exec: typeof runExec = runExec,
+) {
   const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["serve", "--bg", "--yes", `${port}`], {
+  await execWithSudoFallback(exec, tailscaleBin, args, {
     maxBuffer: 200_000,
     timeoutMs: 15_000,
   });
+}
+
+export async function enableTailscaleServe(port: number, exec: typeof runExec = runExec) {
+  await runTailscaleServiceCommand(["serve", "--bg", "--yes", `${port}`], exec);
 }
 
 export async function disableTailscaleServe(exec: typeof runExec = runExec) {
-  const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["serve", "reset"], {
-    maxBuffer: 200_000,
-    timeoutMs: 15_000,
-  });
+  await runTailscaleServiceCommand(["serve", "reset"], exec);
 }
 
 export async function enableTailscaleFunnel(port: number, exec: typeof runExec = runExec) {
-  const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["funnel", "--bg", "--yes", `${port}`], {
-    maxBuffer: 200_000,
-    timeoutMs: 15_000,
-  });
+  await runTailscaleServiceCommand(["funnel", "--bg", "--yes", `${port}`], exec);
 }
 
 export async function disableTailscaleFunnel(exec: typeof runExec = runExec) {
-  const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["funnel", "reset"], {
-    maxBuffer: 200_000,
-    timeoutMs: 15_000,
-  });
+  await runTailscaleServiceCommand(["funnel", "reset"], exec);
 }
 
 function getString(value: unknown): string | undefined {
