@@ -43,3 +43,28 @@ describe("wide-area DNS-SD zone rendering", () => {
     expect(txt).toContain(`tailnetDns=peters-mac-studio-1.sheep-coho.ts.net`);
   });
 });
+
+import path from "node:path";
+import { CONFIG_DIR } from "../utils.js";
+import { getWideAreaZonePath } from "./widearea-dns.js";
+
+describe("wide-area DNS security", () => {
+  it("getWideAreaZonePath prevents path traversal", () => {
+    const maliciousDomain = "../../../tmp/evil";
+    expect(() => {
+        getWideAreaZonePath(maliciousDomain);
+    }).toThrow();
+  });
+
+  it("getWideAreaZonePath allows valid domains", () => {
+    const domain = "example.com";
+    const zonePath = getWideAreaZonePath(domain);
+    const expected = path.join(CONFIG_DIR, "dns", "example.com.db");
+    expect(zonePath).toBe(expected);
+  });
+
+  it("getWideAreaZonePath rejects domains with slashes", () => {
+    expect(() => getWideAreaZonePath("foo/bar")).toThrow();
+    expect(() => getWideAreaZonePath("foo\\bar")).toThrow();
+  });
+});
