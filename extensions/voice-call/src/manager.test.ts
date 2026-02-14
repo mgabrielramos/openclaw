@@ -31,7 +31,10 @@ class FakeProvider implements VoiceCallProvider {
   async initiateCall(_input: InitiateCallInput): Promise<InitiateCallResult> {
     return { providerCallId: "request-uuid", status: "initiated" };
   }
-  async hangupCall(_input: HangupCallInput): Promise<void> {}
+  readonly hangupCalls: HangupCallInput[] = [];
+  async hangupCall(input: HangupCallInput): Promise<void> {
+    this.hangupCalls.push(input);
+  }
   async playTts(input: PlayTtsInput): Promise<void> {
     this.playTtsCalls.push(input);
   }
@@ -103,5 +106,44 @@ describe("CallManager", () => {
 
     expect(provider.playTtsCalls).toHaveLength(1);
     expect(provider.playTtsCalls[0]?.text).toBe("Hello there");
+  });
+
+  it("explicitly hangs up when inbound call is rejected", async () => {
+    // Configure manager to only allow specific numbers
+    const config = VoiceCallConfigSchema.parse({
+      enabled: true,
+      provider: "plivo",
+      fromNumber: "+15550000000",
+      inboundPolicy: "allowlist",
+      allowFrom: ["+15559999999"], // Only allow this number
+    });
+
+    const storePath = path.join(os.tmpdir(), `openclaw-hangup-test-${Date.now()}`);
+    const provider = new FakeProvider();
+    const manager = new CallManager(config, storePath);
+    manager.initialize(provider, "https://example.com/voice/webhook");
+
+    // Simulate inbound call from a blocked number
+    const blockedNumber = "+15550000001";
+    manager.processEvent({
+      id: "evt-rej-1",
+      type: "call.ringing",
+      callId: "call-rej-1",
+      providerCallId: "provider-rej-1",
+      timestamp: Date.now(),
+      direction: "inbound",
+      from: blockedNumber,
+      to: "+15550000000",
+    });
+
+    // Wait briefly for any async operations
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Verify hangupCall was called
+    expect(provider.hangupCalls).toHaveLength(1);
+    expect(provider.hangupCalls[0]).toMatchObject({
+      providerCallId: "provider-rej-1",
+      reason: "busy",
+    });
   });
 });
