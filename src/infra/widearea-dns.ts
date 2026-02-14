@@ -26,6 +26,9 @@ function zoneFilenameForDomain(domain: string): string {
 }
 
 export function getWideAreaZonePath(domain: string): string {
+  if (domain.includes("/") || domain.includes("\\")) {
+    throw new Error(`Invalid domain name for wide-area zone: ${domain}`);
+  }
   return path.join(CONFIG_DIR, "dns", zoneFilenameForDomain(domain));
 }
 
