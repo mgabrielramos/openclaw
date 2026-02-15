@@ -1,0 +1,28 @@
+<<<<<<< SEARCH
+    if (!shouldAcceptInbound(ctx.config, event.from)) {
+      // TODO: Could hang up the call here.
+      return;
+    }
+=======
+    if (!shouldAcceptInbound(ctx.config, event.from)) {
+      console.log(
+        `[voice-call] Rejecting inbound call from ${event.from} (providerId: ${event.providerCallId})`,
+      );
+      if (ctx.provider) {
+        ctx.provider
+          .hangupCall({
+            callId: "rejected-call",
+            providerCallId: event.providerCallId,
+            reason: "hangup-bot",
+          })
+          .catch((err) => {
+            console.error(
+              `[voice-call] Failed to hang up rejected call: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+          });
+      }
+      return;
+    }
+>>>>>>> REPLACE

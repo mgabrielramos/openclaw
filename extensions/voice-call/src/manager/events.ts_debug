@@ -1,0 +1,18 @@
+<<<<<<< SEARCH
+  if (!call && event.direction === "inbound" && event.providerCallId) {
+    if (!shouldAcceptInbound(ctx.config, event.from)) {
+      console.log(
+        `[voice-call] Rejecting inbound call from ${event.from} (providerId: ${event.providerCallId})`,
+      );
+      if (ctx.provider) {
+        ctx.provider
+=======
+  if (!call && event.direction === "inbound" && event.providerCallId) {
+    if (!shouldAcceptInbound(ctx.config, event.from)) {
+      console.log(
+        `[voice-call] Rejecting inbound call from ${event.from} (providerId: ${event.providerCallId})`,
+      );
+      console.log("DEBUG: ctx.provider is:", ctx.provider ? "set" : "null");
+      if (ctx.provider) {
+        ctx.provider
+>>>>>>> REPLACE
